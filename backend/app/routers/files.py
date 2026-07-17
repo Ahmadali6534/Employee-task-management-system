@@ -14,7 +14,6 @@ from fastapi.responses import FileResponse # type: ignore
 from app.database import get_db
 from app.models.task import Task
 from app.models.task_file import TaskFile
-from app.models.employee import Employee
 from app.models.user import User
 
 from app.core.security import get_current_user
@@ -77,12 +76,7 @@ def _ensure_task_access(task: Task, current_user: User, db: Session):
     if current_user.role == "admin":
         return
 
-    employee = db.query(Employee).filter(
-        Employee.user_id == current_user.id,
-        Employee.is_deleted == False
-    ).first()
-
-    if not employee or task.employee_id != employee.id:
+    if task.assigned_to != current_user.id:
         raise HTTPException(
             status_code=403,
             detail="You do not have access to this task's files"

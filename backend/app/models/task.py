@@ -19,9 +19,9 @@ class Task(Base):
 
     id = Column(Integer, primary_key=True, index=True)
 
-    employee_id = Column(
+    assigned_to = Column(
         Integer,
-        ForeignKey("employees.id"),
+        ForeignKey("users.id"),
         nullable=False
     )
 
@@ -66,7 +66,7 @@ class Task(Base):
         onupdate=datetime.utcnow
     )
     created_by = Column(
-    Integer,
-    ForeignKey("users.id"),
-    nullable=False
-)
+        Integer,
+        ForeignKey("users.id"),
+        nullable=False
+    )
