@@ -22,7 +22,7 @@ export default function AppLayout() {
   return (
     <div className="flex h-screen bg-surface">
       {/* Sidebar */}
-      <aside className="hidden w-[280px] flex-col border-r border-line bg-white md:flex">
+      <aside className="hidden w-60 flex-col border-r border-line bg-white md:flex">
         <div className="flex h-16 items-center gap-2 px-6">
           <div className="h-7 w-7 rounded-md bg-brand-500" />
           <span className="font-display text-lg font-semibold text-ink-900">TaskBoard</span>
@@ -36,9 +36,9 @@ export default function AppLayout() {
                 key={item.to}
                 to={item.to}
                 className={({ isActive }) =>
-                  `relative rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                  `rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
                     isActive
-                      ? "bg-brand-50 text-brand-700 before:absolute before:left-0 before:top-1/2 before:h-5 before:w-0.5 before:-translate-y-1/2 before:rounded-full before:bg-brand-500"
+                      ? "bg-brand-50 text-brand-700"
                       : "text-ink-700 hover:bg-surface hover:text-ink-900"
                   }`
                 }

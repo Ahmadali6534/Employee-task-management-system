@@ -36,7 +36,6 @@ export interface TaskFile {
 }
 
 export interface DashboardStats {
-  [x: string]: any;
   total_employees: number;
   active_employees: number;
   inactive_employees: number;

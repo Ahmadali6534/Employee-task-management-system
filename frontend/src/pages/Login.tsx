@@ -49,12 +49,12 @@ export default function Login() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-surface px-4">
+    <div className="flex min-h-screen items-center justify-center bg-ink-950 px-4">
       <div className="w-full max-w-sm">
         <div className="mb-8 flex flex-col items-center gap-2">
           <div className="h-10 w-10 rounded-lg bg-brand-500" />
-          <h1 className="font-display text-2xl font-semibold text-ink-900">TaskBoard</h1>
-          <p className="text-sm text-ink-600">Sign in to manage your tasks</p>
+          <h1 className="font-display text-2xl font-semibold text-white">TaskBoard</h1>
+          <p className="text-sm text-ink-300">Sign in to manage your tasks</p>
         </div>
 
         <form onSubmit={handleSubmit} className="card space-y-4 p-6">
