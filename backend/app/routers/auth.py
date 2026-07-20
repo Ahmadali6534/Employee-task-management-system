@@ -64,7 +64,8 @@ def login_user(
 
     # username will contain email
     db_user = db.query(User).filter(
-        User.email == form_data.username
+        User.email == form_data.username,
+        User.is_deleted == False
     ).first()
 
 
