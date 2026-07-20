@@ -219,6 +219,19 @@ def update_task(
     update_data = task_data.model_dump(
         exclude_unset=True
     )
+
+    if "assigned_to" in update_data:
+        assignee = db.query(User).filter(
+            User.id == update_data["assigned_to"],
+            User.is_deleted == False
+        ).first()
+
+        if not assignee:
+            raise HTTPException(
+                status_code=404,
+                detail="User not found"
+            )
+
     for key, value in update_data.items():
         setattr(task, key, value)
     db.commit()

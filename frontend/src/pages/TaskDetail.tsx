@@ -67,9 +67,11 @@ export default function TaskDetail() {
     description: "",
     priority: "Medium" as Task["priority"],
     due_date: "",
+    assigned_to: "",
   });
   const [editError, setEditError] = useState<string | null>(null);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [employees, setEmployees] = useState<User[]>([]);
 
   async function fetchTask() {
     setIsLoading(true);
@@ -127,9 +129,16 @@ export default function TaskDetail() {
       description: task.description ?? "",
       priority: task.priority,
       due_date: task.due_date.slice(0, 10),
+      assigned_to: String(task.assigned_to),
     });
     setEditError(null);
     setIsEditModalOpen(true);
+    if (isAdmin) {
+      api
+        .get<User[]>("/users/")
+        .then(({ data }) => setEmployees(data.filter((u) => u.role === "employee")))
+        .catch(() => setEmployees([]));
+    }
   }
 
   async function handleEditSubmit(e: FormEvent) {
@@ -137,8 +146,8 @@ export default function TaskDetail() {
     if (!task) return;
     setEditError(null);
 
-    if (!editForm.title.trim() || !editForm.due_date) {
-      setEditError("Title and due date are required.");
+    if (!editForm.title.trim() || !editForm.due_date || !editForm.assigned_to) {
+      setEditError("Title, assignee, and due date are required.");
       return;
     }
 
@@ -149,6 +158,7 @@ export default function TaskDetail() {
         description: editForm.description || null,
         priority: editForm.priority,
         due_date: new Date(editForm.due_date).toISOString(),
+        assigned_to: Number(editForm.assigned_to),
       });
       setTask(data);
       setIsEditModalOpen(false);
@@ -546,6 +556,25 @@ export default function TaskDetail() {
                   onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
                   disabled={isSavingEdit}
                 />
+              </div>
+
+              <div>
+                <label className="label">Assignee</label>
+                <select
+                  className="input"
+                  value={editForm.assigned_to}
+                  onChange={(e) => setEditForm({ ...editForm, assigned_to: e.target.value })}
+                  disabled={isSavingEdit}
+                >
+                  <option value="" disabled>
+                    Select employee
+                  </option>
+                  {employees.map((emp) => (
+                    <option key={emp.id} value={emp.id}>
+                      {emp.first_name} {emp.last_name}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div>

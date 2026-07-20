@@ -7,9 +7,9 @@ React + TypeScript + Vite frontend for the Employee Task Management System, buil
 - React 18 + TypeScript
 - Vite
 - React Router v6
-- Axios (with JWT interceptor)
+- Axios (`withCredentials`, session cookie based)
 - Context API (auth state)
-- Session Storage (token persistence)
+- httpOnly session cookie (token persistence)
 - Tailwind CSS
 
 ## Prerequisites
@@ -52,7 +52,7 @@ Output is generated in `dist/`.
 
 ```
 src/
-├── api/axios.ts            Axios instance, JWT interceptor, session storage helpers
+├── api/axios.ts            Axios instance (withCredentials), 401 handling
 ├── components/
 │   ├── AppLayout.tsx        Sidebar/topbar shell for authenticated pages
 │   └── ProtectedRoute.tsx   Auth + admin-only route guard
@@ -77,5 +77,7 @@ src/
 ## Notes
 
 - Login calls `POST /auth/login` with a form-urlencoded body (`OAuth2PasswordRequestForm` on the backend), not JSON.
-- The JWT is stored in `sessionStorage` (cleared on tab close and on logout), per the SRS requirement.
-- A 401 response from any API call automatically clears the session and redirects to `/login`.
+- The session token is stored in an **httpOnly cookie** set by the backend on `/auth/login` — client-side JavaScript cannot read it, so an XSS bug in this app can no longer exfiltrate a live session. The frontend never sees or stores the token directly; every request just relies on `withCredentials: true` to attach the cookie automatically.
+- On load, the app calls `GET /auth/me` to check whether a valid session cookie exists, since there's no local flag to check anymore.
+- Logout calls `POST /auth/logout`, which clears the cookie server-side.
+- A 401 response from any API call automatically clears local auth state and redirects to `/login`.
