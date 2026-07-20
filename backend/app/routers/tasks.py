@@ -92,6 +92,10 @@ def get_tasks(
     query = db.query(Task).filter(
         Task.is_deleted == False
     )
+    if current_user.role != "admin":
+        query = query.filter(
+            Task.assigned_to == current_user.id
+    )
 
     # Search
     if search:
@@ -114,11 +118,14 @@ def get_tasks(
             Task.priority == priority
         )
 
-    # Sorting
-    if hasattr(Task, sort_by):
+
+   # Sorting (whitelist to avoid arbitrary attribute access)
+    ALLOWED_SORT_FIELDS = {
+        "created_at", "due_date", "priority", "status", "title"}
+
+    if sort_by in ALLOWED_SORT_FIELDS and hasattr(Task, sort_by):
 
         column = getattr(Task, sort_by)
-
         if order == "asc":
             query = query.order_by(
                 column.asc()
@@ -130,6 +137,9 @@ def get_tasks(
             )
 
     # Pagination
+
+    limit = min(max(limit, 1), 100)
+    page = max(page, 1)
     offset = (page - 1) * limit
 
     tasks = (

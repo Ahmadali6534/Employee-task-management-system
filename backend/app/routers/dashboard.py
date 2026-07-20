@@ -18,52 +18,60 @@ def dashboard_stats(
     current_user=Depends(get_current_user)
 ):
 
-    total_employees = db.query(Employee).filter(
-        Employee.is_deleted == False
+    is_admin = current_user.role == "admin"
+
+    # Employee counts are org-wide numbers — only meaningful for admins
+    total_employees = None
+    active_employees = None
+    inactive_employees = None
+
+    if is_admin:
+        total_employees = db.query(Employee).filter(
+            Employee.is_deleted == False
+        ).count()
+
+        active_employees = db.query(Employee).filter(
+            Employee.status == "active",
+            Employee.is_deleted == False
+        ).count()
+
+        inactive_employees = db.query(Employee).filter(
+            Employee.status == "inactive",
+            Employee.is_deleted == False
+        ).count()
+
+    # Base task query: admin sees all tasks, employee sees only their own
+    task_query = db.query(Task).filter(Task.is_deleted == False)
+
+    if not is_admin:
+        task_query = task_query.filter(
+            Task.assigned_to == current_user.id
+        )
+
+    total_tasks = task_query.count()
+
+    pending_tasks = task_query.filter(
+        Task.status == "Pending"
     ).count()
 
-    active_employees = db.query(Employee).filter(
-        Employee.status == "active",
-        Employee.is_deleted == False
+    in_progress_tasks = task_query.filter(
+        Task.status == "In Progress"
     ).count()
 
-    inactive_employees = db.query(Employee).filter(
-        Employee.status == "inactive",
-        Employee.is_deleted == False
+    completed_tasks = task_query.filter(
+        Task.status == "Completed"
     ).count()
 
-    total_tasks = db.query(Task).filter(
-        Task.is_deleted == False
+    high_priority_tasks = task_query.filter(
+        Task.priority == "High"
     ).count()
 
-    pending_tasks = db.query(Task).filter(
-        Task.status == "Pending",
-        Task.is_deleted == False
+    medium_priority_tasks = task_query.filter(
+        Task.priority == "Medium"
     ).count()
 
-    in_progress_tasks = db.query(Task).filter(
-        Task.status == "In Progress",
-        Task.is_deleted == False
-    ).count()
-
-    completed_tasks = db.query(Task).filter(
-        Task.status == "Completed",
-        Task.is_deleted == False
-    ).count()
-
-    high_priority_tasks = db.query(Task).filter(
-        Task.priority == "High",
-        Task.is_deleted == False
-    ).count()
-
-    medium_priority_tasks = db.query(Task).filter(
-        Task.priority == "Medium",
-        Task.is_deleted == False
-    ).count()
-
-    low_priority_tasks = db.query(Task).filter(
-        Task.priority == "Low",
-        Task.is_deleted == False
+    low_priority_tasks = task_query.filter(
+        Task.priority == "Low"
     ).count()
 
     return {

@@ -7,13 +7,14 @@ const statCards: {
   key: keyof DashboardStats;
   label: string;
   accent: string;
+  adminOnly?: boolean;
 }[] = [
   { key: "total_tasks", label: "Total Tasks", accent: "bg-brand-500" },
   { key: "pending_tasks", label: "Pending", accent: "bg-warning" },
   { key: "in_progress_tasks", label: "In Progress", accent: "bg-brand-600" },
   { key: "completed_tasks", label: "Completed", accent: "bg-success" },
-  { key: "total_employees", label: "Total Employees", accent: "bg-ink-700" },
-  { key: "active_employees", label: "Active Employees", accent: "bg-success" },
+  { key: "total_employees", label: "Total Employees", accent: "bg-ink-700", adminOnly: true },
+  { key: "active_employees", label: "Active Employees", accent: "bg-success", adminOnly: true },
   { key: "high_priority_tasks", label: "High Priority", accent: "bg-danger" },
   { key: "medium_priority_tasks", label: "Medium Priority", accent: "bg-warning" },
 ];
@@ -61,13 +62,15 @@ export default function Dashboard() {
 
       {isLoading ? (
         <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-          {Array.from({ length: 8 }).map((_, i) => (
+          {Array.from({ length: user?.role === "admin" ? 8 : 6 }).map((_, i) => (
             <div key={i} className="card h-24 animate-pulse bg-line/40" />
           ))}
         </div>
       ) : stats ? (
         <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-          {statCards.map((card) => (
+          {statCards
+            .filter((card) => !card.adminOnly || user?.role === "admin")
+            .map((card) => (
             <div key={card.key} className="card p-4">
               <div className={`mb-3 h-1.5 w-8 rounded-full ${card.accent}`} />
               <p className="font-display text-3xl font-semibold text-ink-900">
