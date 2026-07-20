@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException # type: ignore
 from sqlalchemy.orm import Session
 from app.database import get_db
-from sqlalchemy import or_
+from sqlalchemy import or_, case
 from app.models.task import Task
 from app.models.user import User
 from app.schemas.task import (
@@ -125,7 +125,19 @@ def get_tasks(
 
     if sort_by in ALLOWED_SORT_FIELDS and hasattr(Task, sort_by):
 
-        column = getattr(Task, sort_by)
+        if sort_by == "priority":
+            # Priority is a string column, so a plain alphabetical sort
+            # gives High, Low, Medium instead of High, Medium, Low.
+            # Rank it explicitly so it sorts by importance instead.
+            column = case(
+                (Task.priority == "High", 3),
+                (Task.priority == "Medium", 2),
+                (Task.priority == "Low", 1),
+                else_=0
+            )
+        else:
+            column = getattr(Task, sort_by)
+
         if order == "asc":
             query = query.order_by(
                 column.asc()
