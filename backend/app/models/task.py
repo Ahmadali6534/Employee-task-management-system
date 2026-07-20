@@ -22,7 +22,8 @@ class Task(Base):
     assigned_to = Column(
         Integer,
         ForeignKey("users.id"),
-        nullable=False
+        nullable=False,
+        index=True
     )
 
     title = Column(
@@ -37,27 +38,32 @@ class Task(Base):
 
     priority = Column(
         String(20),
-        default="Medium"
+        default="Medium",
+        index=True
     )
 
     status = Column(
         String(20),
-        default="Pending"
+        default="Pending",
+        index=True
     )
 
     due_date = Column(
         DateTime,
-        nullable=False
+        nullable=False,
+        index=True
     )
 
     is_deleted = Column(
         Boolean,
-        default=False
+        default=False,
+        index=True
     )
 
     created_at = Column(
         DateTime,
-        default=datetime.utcnow
+        default=datetime.utcnow,
+        index=True
     )
 
     updated_at = Column(

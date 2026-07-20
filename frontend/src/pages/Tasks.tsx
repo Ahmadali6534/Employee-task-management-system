@@ -87,49 +87,24 @@ export default function Tasks() {
     setIsLoading((prev) => (tasks.length === 0 ? true : prev));
     setError(null);
     try {
-      if (isAdmin) {
-        // Admins see every task; backend does search/filter/sort/pagination.
-        const { data } = await api.get<Task[]>("/tasks/", {
-          params: {
-            page,
-            limit: PAGE_SIZE,
-            search: search || undefined,
-            status: statusFilter || undefined,
-            priority: priorityFilter || undefined,
-            sort_by: sortBy,
-            order,
-          },
-        });
-        setTasks(data);
-      } else {
-        // Employees may only see tasks assigned to them (SRS role rule).
-        // /tasks/my-tasks has no query params, so filter/sort/paginate client-side.
-        const { data } = await api.get<Task[]>("/tasks/my-tasks");
-
-        let filtered = data;
-        if (search) {
-          const q = search.toLowerCase();
-          filtered = filtered.filter(
-            (t) =>
-              t.title.toLowerCase().includes(q) ||
-              (t.description ?? "").toLowerCase().includes(q)
-          );
-        }
-        if (statusFilter) filtered = filtered.filter((t) => t.status === statusFilter);
-        if (priorityFilter) filtered = filtered.filter((t) => t.priority === priorityFilter);
-
-        filtered = [...filtered].sort((a, b) => {
-          const key = sortBy as keyof Task;
-          const av = a[key] ?? "";
-          const bv = b[key] ?? "";
-          if (av < bv) return order === "asc" ? -1 : 1;
-          if (av > bv) return order === "asc" ? 1 : -1;
-          return 0;
-        });
-
-        const start = (page - 1) * PAGE_SIZE;
-        setTasks(filtered.slice(start, start + PAGE_SIZE));
-      }
+      // The backend already scopes this endpoint to the current user's own
+      // tasks when they're not an admin (see routers/tasks.py), and does
+      // search/filter/sort/pagination server-side for both roles. So there's
+      // no need for a separate "fetch everything, then filter/sort/paginate
+      // in the browser" path for employees -- that used to re-download and
+      // re-process an employee's *entire* task list on every keystroke.
+      const { data } = await api.get<Task[]>("/tasks/", {
+        params: {
+          page,
+          limit: PAGE_SIZE,
+          search: search || undefined,
+          status: statusFilter || undefined,
+          priority: priorityFilter || undefined,
+          sort_by: sortBy,
+          order,
+        },
+      });
+      setTasks(data);
     } catch {
       setError("Could not load tasks.");
     } finally {
