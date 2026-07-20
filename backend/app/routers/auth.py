@@ -9,6 +9,7 @@ from app.core.security import hash_password
 from app.core.security import get_current_user
 from app.core.security import admin_required
 from fastapi.security import OAuth2PasswordRequestForm # type: ignore
+from app.core.rate_limit import rate_limit_login
 router = APIRouter(
     prefix="/auth",
     tags=["Authentication"]
@@ -59,7 +60,8 @@ def register_user(
 @router.post("/login")
 def login_user(
     form_data: OAuth2PasswordRequestForm = Depends(),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _rate_limit=Depends(rate_limit_login)
 ):
 
     # username will contain email

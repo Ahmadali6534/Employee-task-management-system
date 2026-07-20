@@ -28,6 +28,17 @@ def create_employee(
     current_user: User = Depends(admin_required)
 ):
 
+    linked_user = db.query(User).filter(
+        User.id == employee.user_id,
+        User.is_deleted == False
+    ).first()
+
+    if not linked_user:
+        raise HTTPException(
+            status_code=404,
+            detail="Linked user account not found"
+        )
+
     new_employee = Employee(
         user_id=employee.user_id,
         first_name=employee.first_name,
@@ -62,11 +73,19 @@ def get_employees(
     current_user: User = Depends(get_current_user)
 ):
 
+    limit = min(max(limit, 1), 100)
+    page = max(page, 1)
     offset = (page - 1) * limit
 
     query = db.query(Employee).filter(
         Employee.is_deleted == False
     )
+
+    # Employees may only see their own record; admins see everyone
+    if current_user.role != "admin":
+        query = query.filter(
+            Employee.user_id == current_user.id
+        )
 
     # Search
     if search:
@@ -91,8 +110,13 @@ def get_employees(
             Employee.status == status
         )
 
-    # Sorting
-    if hasattr(Employee, sort_by):
+    # Sorting (whitelist to avoid arbitrary attribute access)
+    ALLOWED_SORT_FIELDS = {
+        "created_at", "first_name", "last_name",
+        "department", "designation", "joining_date"
+    }
+
+    if sort_by in ALLOWED_SORT_FIELDS and hasattr(Employee, sort_by):
 
         column = getattr(Employee, sort_by)
 
@@ -133,6 +157,12 @@ def get_employee(
             detail="Employee not found"
         )
 
+    if current_user.role != "admin" and employee.user_id != current_user.id:
+        raise HTTPException(
+            status_code=403,
+            detail="You do not have access to this employee record"
+        )
+
     return employee
 
 
@@ -150,7 +180,8 @@ def update_employee(
 ):
 
     db_employee = db.query(Employee).filter(
-        Employee.id == employee_id
+        Employee.id == employee_id,
+        Employee.is_deleted == False
     ).first()
 
     if not db_employee:

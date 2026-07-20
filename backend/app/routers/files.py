@@ -48,6 +48,18 @@ ALLOWED_EXTENSIONS = [
     "txt"
 ]
 
+# Server-controlled content types, keyed by validated extension.
+# Never trust the client-supplied Content-Type header for serving files —
+# it can be spoofed to trigger browser content-sniffing / stored XSS.
+SAFE_CONTENT_TYPES = {
+    "pdf": "application/pdf",
+    "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "png": "image/png",
+    "jpg": "image/jpeg",
+    "txt": "text/plain",
+}
+
 
 MAX_FILE_SIZE = 10 * 1024 * 1024
 
@@ -106,18 +118,24 @@ async def upload_file(
         )
 
 
-    # Read file
+    # Read file in chunks, aborting early if it exceeds the size limit
+    # (avoids buffering an oversized upload fully into memory first)
 
-    contents = await file.read()
+    CHUNK_SIZE = 1024 * 1024  # 1MB
+    contents = bytearray()
 
+    while True:
+        chunk = await file.read(CHUNK_SIZE)
+        if not chunk:
+            break
+        contents.extend(chunk)
+        if len(contents) > MAX_FILE_SIZE:
+            raise HTTPException(
+                status_code=400,
+                detail="File size exceeds 10MB"
+            )
 
-    # Check size
-
-    if len(contents) > MAX_FILE_SIZE:
-        raise HTTPException(
-            status_code=400,
-            detail="File size exceeds 10MB"
-        )
+    contents = bytes(contents)
 
 
     # Generate unique filename
@@ -146,7 +164,9 @@ async def upload_file(
         task_id=task_id,
         original_file_name=file.filename,
         stored_file_name=stored_filename,
-        content_type=file.content_type,
+        content_type=SAFE_CONTENT_TYPES.get(
+            extension, "application/octet-stream"
+        ),
         file_size=len(contents),
         file_path=file_path,
         uploaded_by=current_user.id
@@ -237,6 +257,12 @@ def delete_file(
     task = _get_task_or_404(task_file.task_id, db)
     _ensure_task_access(task, current_user, db)
 
+    # Only the person who uploaded the file, or an admin, may delete it
+    if current_user.role != "admin" and task_file.uploaded_by != current_user.id:
+        raise HTTPException(
+            status_code=403,
+            detail="Only the uploader or an admin can delete this file"
+        )
 
     # Delete physical file
 
