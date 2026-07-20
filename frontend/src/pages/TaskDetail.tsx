@@ -2,14 +2,47 @@ import { type ChangeEvent, type FormEvent, useEffect, useRef, useState } from "r
 import axios from "axios";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import api from "../api/axios";
-import type { Task, TaskFile, TaskStatus } from "../types";
+import type { Task, TaskFile, TaskStatus, User } from "../types";
 import { useAuth } from "../context/AuthContext";
+import {
+  ArrowLeft,
+  Pencil,
+  Trash2,
+  Calendar,
+  Flag,
+  Paperclip,
+  Download,
+  X,
+  UploadCloud,
+  FileText,
+  AlertCircle,
+  Loader2,
+  Circle,
+  CircleDot,
+  CheckCircle2,
+  UserRound,
+  Clock,
+  Hash,
+  Info,
+} from "lucide-react";
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
+
+const priorityStyles: Record<Task["priority"], string> = {
+  Low: "bg-line text-ink-700",
+  Medium: "bg-warning/10 text-warning",
+  High: "bg-danger/10 text-danger",
+};
+
+const statusIcons: Record<TaskStatus, typeof Circle> = {
+  Pending: Circle,
+  "In Progress": CircleDot,
+  Completed: CheckCircle2,
+};
 
 export default function TaskDetail() {
   const { taskId } = useParams<{ taskId: string }>();
@@ -22,6 +55,7 @@ export default function TaskDetail() {
   const [files, setFiles] = useState<TaskFile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [assignee, setAssignee] = useState<User | null>(null);
 
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -58,6 +92,20 @@ export default function TaskDetail() {
     fetchTask();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [taskId]);
+
+  useEffect(() => {
+    if (!task) return;
+    if (task.assigned_to === user?.id) {
+      setAssignee(user);
+      return;
+    }
+    if (!isAdmin) return;
+    api
+      .get<User[]>("/users/")
+      .then(({ data }) => setAssignee(data.find((u) => u.id === task.assigned_to) ?? null))
+      .catch(() => setAssignee(null));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [task?.assigned_to]);
 
   async function handleStatusChange(status: TaskStatus) {
     if (!task) return;
@@ -185,117 +233,186 @@ export default function TaskDetail() {
   }
 
   if (isLoading) {
-    return <p className="text-sm text-ink-600">Loading task…</p>;
+    return (
+      <div className="flex items-center gap-2 py-16 text-sm text-ink-600">
+        <Loader2 className="h-4 w-4 animate-spin text-brand-500" strokeWidth={2} />
+        Loading task…
+      </div>
+    );
   }
 
   if (error || !task) {
     return (
       <div>
-        <p className="mb-4 text-sm text-danger">{error ?? "Task not found."}</p>
-        <Link to="/tasks" className="text-sm font-medium text-brand-600 hover:underline">
-          ← Back to tasks
+        <div className="mb-4 flex items-center gap-2 rounded-lg bg-danger/10 px-4 py-3 text-sm text-danger">
+          <AlertCircle className="h-4 w-4 shrink-0" strokeWidth={2} />
+          {error ?? "Task not found."}
+        </div>
+        <Link
+          to="/tasks"
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-brand-600 hover:underline"
+        >
+          <ArrowLeft className="h-3.5 w-3.5" strokeWidth={2} />
+          Back to tasks
         </Link>
       </div>
     );
   }
 
+  const overdue = task.status !== "Completed" && new Date(task.due_date).getTime() < Date.now();
+
   return (
-    <div className="max-w-2xl">
-      <Link to="/tasks" className="mb-4 inline-block text-sm font-medium text-brand-600 hover:underline">
-        ← Back to tasks
+    <div>
+      <Link
+        to="/tasks"
+        className="mb-4 inline-flex items-center gap-1.5 text-sm font-medium text-brand-600 hover:underline"
+      >
+        <ArrowLeft className="h-3.5 w-3.5" strokeWidth={2} />
+        Back to tasks
       </Link>
 
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+      <div className="space-y-4 lg:col-span-2">
       <div className="card p-6">
         <div className="mb-4 flex items-start justify-between gap-4">
-          <div>
+          <div className="min-w-0">
             <h1 className="font-display text-xl font-semibold text-ink-900">{task.title}</h1>
-            <p className="mt-1 text-sm text-ink-600">
-              Due {new Date(task.due_date).toLocaleDateString()} · Priority {task.priority}
-            </p>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <span
+                className={`flex items-center gap-1.5 text-sm ${
+                  overdue ? "font-medium text-danger" : "text-ink-600"
+                }`}
+              >
+                <Calendar className="h-3.5 w-3.5" strokeWidth={2} />
+                Due {new Date(task.due_date).toLocaleDateString()}
+                {overdue && <span className="text-xs">· Overdue</span>}
+              </span>
+              <span className="text-ink-600/40">·</span>
+              <span className={`badge ${priorityStyles[task.priority]}`}>
+                <Flag className="mr-1 h-3 w-3" strokeWidth={2.5} />
+                {task.priority}
+              </span>
+            </div>
           </div>
           {isAdmin && (
             <div className="flex shrink-0 gap-2">
               <button className="btn-secondary" onClick={openEditModal}>
-                Edit Task
+                <Pencil className="h-4 w-4" strokeWidth={2} />
+                Edit
               </button>
               <button className="btn-danger" onClick={handleDeleteTask}>
-                Delete Task
+                <Trash2 className="h-4 w-4" strokeWidth={2} />
+                Delete
               </button>
             </div>
           )}
         </div>
 
         {task.description && (
-          <p className="mb-5 whitespace-pre-wrap text-sm text-ink-700">{task.description}</p>
+          <p className="mb-5 whitespace-pre-wrap rounded-lg bg-surface p-3 text-sm text-ink-700">
+            {task.description}
+          </p>
         )}
 
-        <div className="mb-2">
+        <div>
           <label className="label">Status</label>
-          <div className="flex gap-2">
-            {(["Pending", "In Progress", "Completed"] as TaskStatus[]).map((status) => (
-              <button
-                key={status}
-                onClick={() => handleStatusChange(status)}
-                disabled={isUpdatingStatus || task.status === status}
-                className={`btn ${
-                  task.status === status
-                    ? "bg-brand-500 text-white"
-                    : "bg-white text-ink-700 border border-line hover:bg-surface"
-                }`}
-              >
-                {status}
-              </button>
-            ))}
+          <div className="flex flex-wrap gap-2">
+            {(["Pending", "In Progress", "Completed"] as TaskStatus[]).map((status) => {
+              const Icon = statusIcons[status];
+              const active = task.status === status;
+              return (
+                <button
+                  key={status}
+                  onClick={() => handleStatusChange(status)}
+                  disabled={isUpdatingStatus || active}
+                  className={`btn ${
+                    active
+                      ? "bg-brand-500 text-white"
+                      : "bg-white text-ink-700 border border-line hover:bg-surface"
+                  }`}
+                >
+                  {isUpdatingStatus && active ? (
+                    <Loader2 className="h-4 w-4 animate-spin" strokeWidth={2} />
+                  ) : (
+                    <Icon className="h-4 w-4" strokeWidth={2} />
+                  )}
+                  {status}
+                </button>
+              );
+            })}
           </div>
         </div>
       </div>
 
-      <div className="card mt-4 p-6">
-        <h2 className="mb-3 font-display text-base font-semibold text-ink-900">Attachments</h2>
+      <div className="card p-6">
+        <div className="mb-3 flex items-center gap-2">
+          <Paperclip className="h-4 w-4 text-ink-600/60" strokeWidth={2} />
+          <h2 className="font-display text-base font-semibold text-ink-900">
+            Attachments {files.length > 0 && <span className="text-ink-600">({files.length})</span>}
+          </h2>
+        </div>
 
         {uploadError && (
-          <div className="mb-3 rounded-lg bg-danger/10 px-3 py-2 text-sm text-danger">
+          <div className="mb-3 flex items-center gap-2 rounded-lg bg-danger/10 px-3 py-2 text-sm text-danger">
+            <AlertCircle className="h-4 w-4 shrink-0" strokeWidth={2} />
             {uploadError}
           </div>
         )}
 
-        <div className="mb-4">
+        <label
+          htmlFor="task-file-upload"
+          className="mb-4 flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-line px-4 py-6 text-center transition-colors hover:border-brand-300 hover:bg-brand-50/40"
+        >
+          {isUploading ? (
+            <Loader2 className="h-6 w-6 animate-spin text-brand-500" strokeWidth={2} />
+          ) : (
+            <UploadCloud className="h-6 w-6 text-ink-600/50" strokeWidth={1.75} />
+          )}
+          <p className="text-sm font-medium text-ink-900">
+            {isUploading ? "Uploading…" : "Click to upload a file"}
+          </p>
+          <p className="text-xs text-ink-600">PDF, DOCX, XLSX, PNG, JPG, TXT — max 10 MB.</p>
           <input
+            id="task-file-upload"
             ref={fileInputRef}
             type="file"
             accept=".pdf,.docx,.xlsx,.png,.jpg,.jpeg,.txt"
             onChange={handleFileSelect}
             disabled={isUploading}
-            className="text-sm text-ink-700 file:mr-3 file:rounded-lg file:border-0 file:bg-brand-500 file:px-4 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-brand-600"
+            className="hidden"
           />
-          <p className="mt-1 text-xs text-ink-600">
-            PDF, DOCX, XLSX, PNG, JPG, TXT — max 10 MB.
-          </p>
-        </div>
+        </label>
 
         {files.length === 0 ? (
-          <p className="text-sm text-ink-600">No attachments yet.</p>
+          <p className="text-center text-sm text-ink-600">No attachments yet.</p>
         ) : (
           <ul className="divide-y divide-line">
             {files.map((f) => (
-              <li key={f.id} className="flex items-center justify-between py-3">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium text-ink-900">
-                    {f.original_file_name}
-                  </p>
-                  <p className="text-xs text-ink-600">{formatBytes(f.file_size)}</p>
+              <li key={f.id} className="flex items-center justify-between gap-3 py-3">
+                <div className="flex min-w-0 items-center gap-3">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-surface">
+                    <FileText className="h-4 w-4 text-ink-600/60" strokeWidth={2} />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-ink-900">
+                      {f.original_file_name}
+                    </p>
+                    <p className="text-xs text-ink-600">{formatBytes(f.file_size)}</p>
+                  </div>
                 </div>
-                <div className="flex shrink-0 gap-3">
+                <div className="flex shrink-0 items-center gap-1">
                   <button
-                    className="text-sm font-medium text-brand-600 hover:underline"
+                    className="flex items-center gap-1 rounded-md px-2 py-1 text-sm font-medium text-brand-600 hover:bg-brand-50"
                     onClick={() => handleDownload(f)}
                   >
+                    <Download className="h-3.5 w-3.5" strokeWidth={2} />
                     Download
                   </button>
                   <button
-                    className="text-sm font-medium text-danger hover:underline"
+                    className="flex items-center gap-1 rounded-md px-2 py-1 text-sm font-medium text-danger hover:bg-danger/10"
                     onClick={() => handleDeleteFile(f)}
                   >
+                    <Trash2 className="h-3.5 w-3.5" strokeWidth={2} />
                     Delete
                   </button>
                 </div>
@@ -304,15 +421,119 @@ export default function TaskDetail() {
           </ul>
         )}
       </div>
+      </div>
+
+      {/* Sidebar */}
+      <div className="space-y-4">
+        <div className="card p-6">
+          <div className="mb-4 flex items-center gap-2">
+            <Info className="h-4 w-4 text-ink-600/60" strokeWidth={2} />
+            <h2 className="font-display text-base font-semibold text-ink-900">Task info</h2>
+          </div>
+          <dl className="divide-y divide-line text-sm">
+            <div className="flex items-center justify-between py-2.5 first:pt-0">
+              <dt className="flex items-center gap-2 text-ink-600">
+                <UserRound className="h-4 w-4 text-ink-600/60" strokeWidth={2} />
+                Assigned to
+              </dt>
+              <dd className="font-medium text-ink-900">
+                {assignee ? `${assignee.first_name} ${assignee.last_name}` : "—"}
+              </dd>
+            </div>
+            <div className="flex items-center justify-between py-2.5">
+              <dt className="flex items-center gap-2 text-ink-600">
+                <Flag className="h-4 w-4 text-ink-600/60" strokeWidth={2} />
+                Priority
+              </dt>
+              <dd>
+                <span className={`badge ${priorityStyles[task.priority]}`}>{task.priority}</span>
+              </dd>
+            </div>
+            <div className="flex items-center justify-between py-2.5">
+              <dt className="flex items-center gap-2 text-ink-600">
+                <Clock className="h-4 w-4 text-ink-600/60" strokeWidth={2} />
+                Created
+              </dt>
+              <dd className="font-medium text-ink-900">
+                {new Date(task.created_at).toLocaleDateString()}
+              </dd>
+            </div>
+            <div className="flex items-center justify-between py-2.5 last:pb-0">
+              <dt className="flex items-center gap-2 text-ink-600">
+                <Hash className="h-4 w-4 text-ink-600/60" strokeWidth={2} />
+                Task ID
+              </dt>
+              <dd className="font-medium text-ink-900">#{task.id}</dd>
+            </div>
+          </dl>
+        </div>
+
+        <div className="card p-6">
+          <h2 className="mb-4 font-display text-base font-semibold text-ink-900">Timeline</h2>
+          <div className="space-y-0">
+            <div className="flex gap-3">
+              <div className="flex flex-col items-center">
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-ink-900">
+                  <span className="h-1.5 w-1.5 rounded-full bg-white" />
+                </span>
+                <span className="w-px flex-1 bg-line" />
+              </div>
+              <div className="pb-6">
+                <p className="text-sm font-medium text-ink-900">Task created</p>
+                <p className="text-xs text-ink-600">
+                  {new Date(task.created_at).toLocaleDateString(undefined, {
+                    day: "numeric",
+                    month: "short",
+                    year: "numeric",
+                  })}
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <span
+                className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${
+                  overdue ? "bg-danger" : "bg-brand-500"
+                }`}
+              >
+                <span className="h-1.5 w-1.5 rounded-full bg-white" />
+              </span>
+              <div>
+                <p className="text-sm font-medium text-ink-900">
+                  {overdue ? "Was due" : "Due"}
+                </p>
+                <p className={`text-xs ${overdue ? "text-danger" : "text-ink-600"}`}>
+                  {new Date(task.due_date).toLocaleDateString(undefined, {
+                    day: "numeric",
+                    month: "short",
+                    year: "numeric",
+                  })}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      </div>
 
       {isEditModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-950/50 p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-950/50 p-4 backdrop-blur-sm">
           <div className="card w-full max-w-md p-6">
-            <h2 className="mb-4 font-display text-lg font-semibold text-ink-900">Edit Task</h2>
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="font-display text-lg font-semibold text-ink-900">Edit Task</h2>
+              <button
+                type="button"
+                onClick={() => setIsEditModalOpen(false)}
+                className="rounded-md p-1 text-ink-600 hover:bg-surface hover:text-ink-900"
+                aria-label="Close"
+              >
+                <X className="h-4 w-4" strokeWidth={2} />
+              </button>
+            </div>
 
             <form onSubmit={handleEditSubmit} className="space-y-4">
               {editError && (
-                <div className="rounded-lg bg-danger/10 px-3 py-2 text-sm text-danger">
+                <div className="flex items-center gap-2 rounded-lg bg-danger/10 px-3 py-2 text-sm text-danger">
+                  <AlertCircle className="h-4 w-4 shrink-0" strokeWidth={2} />
                   {editError}
                 </div>
               )}
@@ -379,7 +600,14 @@ export default function TaskDetail() {
                   Cancel
                 </button>
                 <button type="submit" className="btn-primary" disabled={isSavingEdit}>
-                  {isSavingEdit ? "Saving…" : "Save Changes"}
+                  {isSavingEdit ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" strokeWidth={2} />
+                      Saving…
+                    </>
+                  ) : (
+                    "Save Changes"
+                  )}
                 </button>
               </div>
             </form>
