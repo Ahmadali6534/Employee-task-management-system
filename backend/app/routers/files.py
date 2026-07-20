@@ -64,6 +64,45 @@ SAFE_CONTENT_TYPES = {
 MAX_FILE_SIZE = 10 * 1024 * 1024
 
 
+def _sniff_matches_extension(contents: bytes, extension: str) -> bool:
+    """
+    Check the file's actual magic bytes match the claimed extension,
+    instead of trusting the filename alone. Extension-only validation lets
+    someone rename an arbitrary file (e.g. an HTML polyglot) to a
+    permitted extension; a browser or downstream tool that later sniffs
+    the real content type can still render/execute it as something else.
+
+    Best-effort signature check, not full parsing -- good enough to catch
+    "this isn't really a PDF/PNG/JPG/DOCX/XLSX" mismatches.
+    """
+
+    if extension == "pdf":
+        return contents.startswith(b"%PDF-")
+
+    if extension == "png":
+        return contents.startswith(b"\x89PNG\r\n\x1a\n")
+
+    if extension == "jpg":
+        return contents.startswith(b"\xff\xd8\xff")
+
+    if extension in ("docx", "xlsx"):
+        # Both are zip containers (OOXML); a real one starts with PK.
+        return contents.startswith(b"PK\x03\x04") or contents.startswith(b"PK\x05\x06")
+
+    if extension == "txt":
+        # No magic number for plain text. Reject anything that looks like
+        # markup/script (the actual risk for a "harmless" .txt upload) or
+        # contains null bytes (a sign it's not text at all).
+        if b"\x00" in contents:
+            return False
+        head = contents[:512].lstrip().lower()
+        if head.startswith(b"<!doctype html") or head.startswith(b"<html") or b"<script" in head:
+            return False
+        return True
+
+    return False
+
+
 def _get_task_or_404(task_id: int, db: Session) -> Task:
     task = db.query(Task).filter(
         Task.id == task_id,
@@ -137,6 +176,11 @@ async def upload_file(
 
     contents = bytes(contents)
 
+    if not _sniff_matches_extension(contents, extension):
+        raise HTTPException(
+            status_code=400,
+            detail="File content does not match its extension"
+        )
 
     # Generate unique filename
 

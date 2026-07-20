@@ -5,7 +5,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import api, { clearToken, getToken, setToken } from "../api/axios";
+import api from "../api/axios";
 
 export interface AuthUser {
   id: number;
@@ -32,16 +32,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   async function loadCurrentUser() {
-    if (!getToken()) {
-      setIsLoading(false);
-      return;
-    }
-
+    // The session lives in an httpOnly cookie we can't read from JS, so we
+    // can't check "is there a token" locally anymore -- just ask the
+    // server. A 401 here just means "not logged in", which is fine.
     try {
       const { data } = await api.get<AuthUser>("/auth/me");
       setUser(data);
     } catch {
-      clearToken();
       setUser(null);
     } finally {
       setIsLoading(false);
@@ -59,13 +56,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     form.append("username", email);
     form.append("password", password);
 
-    const { data } = await api.post<{ access_token: string; token_type: string }>(
+    // The response sets the httpOnly session cookie; we don't need (or
+    // want) to read a token out of the body ourselves.
+    await api.post(
       "/auth/login",
       form,
       { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
     );
-
-    setToken(data.access_token);
 
     const { data: me } = await api.get<AuthUser>("/auth/me");
     setUser(me);
@@ -77,7 +74,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch {
       // ignore network errors on logout, still clear local session
     } finally {
-      clearToken();
       setUser(null);
     }
   }

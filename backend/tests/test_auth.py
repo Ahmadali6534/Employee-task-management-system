@@ -33,7 +33,53 @@ def test_login_unknown_email(client):
         "/auth/login",
         data={"username": "nobody@test.com", "password": "whatever123"},
     )
-    assert response.status_code == 404
+    # SECURITY: must be indistinguishable from a wrong-password response
+    # (same status + message), otherwise the endpoint becomes an oracle
+    # for enumerating valid employee emails.
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Invalid email or password"
+
+
+def test_login_wrong_password_matches_unknown_email_response(client, employee_user):
+    """Wrong password and unknown email must return identical responses."""
+    wrong_password_resp = client.post(
+        "/auth/login",
+        data={"username": "employee@test.com", "password": "wrong-password"},
+    )
+    unknown_email_resp = client.post(
+        "/auth/login",
+        data={"username": "somebody-else@test.com", "password": "whatever123"},
+    )
+    assert wrong_password_resp.status_code == unknown_email_resp.status_code == 401
+    assert wrong_password_resp.json() == unknown_email_resp.json()
+
+
+def test_login_sets_httponly_cookie(client, employee_user):
+    response = client.post(
+        "/auth/login",
+        data={"username": "employee@test.com", "password": "employee12345"},
+    )
+    assert response.status_code == 200
+    set_cookie = response.headers.get("set-cookie", "")
+    assert "access_token=" in set_cookie
+    assert "HttpOnly" in set_cookie
+
+
+def test_logout_revokes_token(client, employee_user):
+    login_resp = client.post(
+        "/auth/login",
+        data={"username": "employee@test.com", "password": "employee12345"},
+    )
+    token = login_resp.json()["access_token"]
+
+    # Token works before logout
+    assert client.get("/auth/me", headers=auth_header(token)).status_code == 200
+
+    logout_resp = client.post("/auth/logout", headers=auth_header(token))
+    assert logout_resp.status_code == 200
+
+    # Same token must be rejected after logout, even though it hasn't expired
+    assert client.get("/auth/me", headers=auth_header(token)).status_code == 401
 
 
 def test_get_me_requires_token(client):

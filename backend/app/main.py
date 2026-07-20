@@ -1,5 +1,6 @@
-from fastapi import FastAPI # type: ignore
-from fastapi.middleware.cors import CORSMiddleware # type: ignore
+from fastapi import FastAPI, Request  # type: ignore
+from fastapi.middleware.cors import CORSMiddleware  # type: ignore
+from starlette.middleware.base import BaseHTTPMiddleware  # type: ignore
 from app.routers.auth import router as auth_router
 from app.routers.employees import router as employees_router
 from app.routers.tasks import router as tasks_router
@@ -10,6 +11,29 @@ from app.routers.files import files_router as file_actions_router
 from app.middleware.logging import LoggingMiddleware
 from app.middleware.exceptions import global_exception_handler
 
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    """
+    Defense-in-depth response headers. None of these are a substitute for
+    fixing actual bugs, but they backstop classes of attack (clickjacking,
+    MIME sniffing, and -- if an XSS sink is ever introduced -- script
+    injection) that are otherwise one future mistake away.
+    """
+
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        # This is an API, not a page that renders third-party HTML, so a
+        # tight default-src is safe and closes off script injection even
+        # if an XSS sink is added to a route later.
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'none'; frame-ancestors 'none'"
+        )
+        return response
+
+
 app = FastAPI()
 app.add_exception_handler(
     Exception,
@@ -18,7 +42,15 @@ app.add_exception_handler(
 app.add_middleware(
     LoggingMiddleware
 )
+app.add_middleware(SecurityHeadersMiddleware)
 
+# SECURITY NOTE: these origins are hardcoded to local dev on purpose.
+# allow_credentials=True means cookies are sent cross-origin for any origin
+# listed here -- do NOT widen this to "*" (FastAPI/Starlette will reject
+# that combination anyway) or to a production domain "temporarily" without
+# also re-checking that every listed origin is one you actually trust.
+# Add your deployed frontend's exact origin here when you deploy; don't
+# widen beyond that.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[

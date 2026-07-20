@@ -33,10 +33,14 @@ export default function Login() {
       navigate("/dashboard", { replace: true });
     } catch (err) {
       if (axios.isAxiosError(err)) {
-        if (err.response?.status === 404) {
-          setError("No account found with this email.");
-        } else if (err.response?.status === 401) {
-          setError("Incorrect password.");
+        if (err.response?.status === 401) {
+          // Deliberately generic: the backend no longer distinguishes
+          // "unknown email" from "wrong password" (that distinction let
+          // an attacker enumerate valid employee emails), so the UI
+          // shouldn't reconstruct it either.
+          setError("Incorrect email or password.");
+        } else if (err.response?.status === 429) {
+          setError("Too many login attempts. Please wait a minute and try again.");
         } else {
           setError(err.response?.data?.detail ?? "Login failed. Please try again.");
         }

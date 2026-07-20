@@ -18,7 +18,11 @@ import os
 # Make sure app.core.config has something to load even if a real .env
 # isn't present in the test environment. Real .env values (if present)
 # still take priority via load_dotenv(), these are just safe fallbacks.
-os.environ.setdefault("SECRET_KEY", "test-secret-key-not-for-production")
+os.environ.setdefault(
+    "SECRET_KEY",
+    "test-only-secret-key-0123456789-not-for-production-use-abcdefgh",
+)
+os.environ.setdefault("ENVIRONMENT", "development")
 os.environ.setdefault("ALGORITHM", "HS256")
 os.environ.setdefault("ACCESS_TOKEN_EXPIRE_MINUTES", "60")
 os.environ.setdefault("DATABASE_URL", "sqlite:///:memory:")
@@ -64,6 +68,15 @@ def db_session():
 
 @pytest.fixture()
 def client(db_session: Session):
+    # The login rate limiter and token revocation blacklist are in-memory
+    # module-level state (by design -- see their docstrings), which means
+    # they'd otherwise leak between test functions in the same pytest
+    # process. Reset both per test so tests stay independent.
+    from app.core.rate_limit import _attempts
+    from app.core.security import _revoked_jtis
+    _attempts.clear()
+    _revoked_jtis.clear()
+
     def override_get_db():
         try:
             yield db_session
