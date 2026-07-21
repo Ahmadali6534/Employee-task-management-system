@@ -28,9 +28,15 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         # This is an API, not a page that renders third-party HTML, so a
         # tight default-src is safe and closes off script injection even
         # if an XSS sink is added to a route later.
-        response.headers["Content-Security-Policy"] = (
-            "default-src 'none'; frame-ancestors 'none'"
-        )
+        # EXCEPTION: FastAPI's built-in /docs and /redoc routes are actual
+        # HTML pages that load Swagger UI / ReDoc's JS and CSS from a CDN.
+        # A blanket default-src 'none' breaks them (blank page, CSP errors
+        # in console). These are dev-tooling routes, not attacker-facing
+        # production surface, so skip the strict CSP for them only.
+        if request.url.path not in ("/docs", "/redoc", "/openapi.json"):
+            response.headers["Content-Security-Policy"] = (
+                "default-src 'none'; frame-ancestors 'none'"
+            )
         return response
 
 
